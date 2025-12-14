@@ -1,0 +1,212 @@
+--// KOORDINAT AKURAT
+local pad1Pos = CFrame.new(990.928772, 19.54072, -2945.05176, 0.999282539, -4.5371781e-08, 0.0378730595, 4.46561046e-08, 1, 1.97426271e-08, -0.0378730595, -1.80372002e-08, 0.999282539)
+local pad2Pos = CFrame.new(1024.81641, 19.54072, -2944.78613, 0.995738685, 3.41440085e-08, 0.0922198221, -2.42447467e-08, 1, -1.08464477e-07, -0.0922198221, 1.05766432e-07, 0.995738685)
+local arenaPad1Pos = CFrame.new(828.531982, 51.2389145, -3319.73999, 1.63557691e-14, 2.24882708e-08, -1, -1.09395351e-07, 1, 2.24882708e-08, 1, 1.09395351e-07, 1.88158815e-14)
+local arenaPad2Pos = CFrame.new(1192.61768, 51.2389145, -3319.76221, 1.60084501e-14, -5.54293074e-08, 1, 3.96227406e-09, 1, 5.54293074e-08, -1, 3.96227406e-09, 1.62280755e-14)
+
+--// SERVICES
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+--// STATE
+local playerTeam = "pad1"  -- pad1 atau pad2
+getgenv().autoReset = false
+getgenv().matchActive = false
+getgenv().countdownActive = false
+getgenv().victoryGuiActive = false
+
+--// FUNGSI CORE
+local function teleportTo(pos)
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    hrp.CFrame = pos
+end
+
+local function resetCharacter()
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.Health = 0
+    end
+end
+
+local function showVictoryGui()
+    if getgenv().victoryGuiActive then return end
+    getgenv().victoryGuiActive = true
+    
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "VictoryGui"
+    gui.Parent = game.CoreGui
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 250, 0, 150)
+    frame.Position = UDim2.new(0.5, -125, 0.5, -75)
+    frame.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+    frame.Parent = gui
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.BackgroundTransparency = 1
+    title.Text = "YOU WIN!"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 20
+    title.Parent = frame
+    
+    local bounty = Instance.new("TextLabel")
+    bounty.Size = UDim2.new(1, 0, 0, 25)
+    bounty.Position = UDim2.new(0, 0, 0, 35)
+    bounty.BackgroundTransparency = 1
+    bounty.Text = "Bounty: +500"
+    bounty.TextColor3 = Color3.fromRGB(255, 215, 0)
+    bounty.Font = Enum.Font.SourceSans
+    bounty.TextSize = 16
+    bounty.Parent = frame
+    
+    local points = Instance.new("TextLabel")
+    points.Size = UDim2.new(1, 0, 0, 25)
+    points.Position = UDim2.new(0, 0, 0, 65)
+    points.BackgroundTransparency = 1
+    points.Text = "Points: +100"
+    points.TextColor3 = Color3.fromRGB(0, 255, 0)
+    points.Font = Enum.Font.SourceSans
+    points.TextSize = 16
+    points.Parent = frame
+    
+    wait(3)
+    gui:Destroy()
+    getgenv().victoryGuiActive = false
+    teleportTo(pad2Pos)
+end
+
+--// MAIN LOOP (UDah CORRECT)
+spawn(function()
+    while true do
+        wait(0.1)
+        
+        local char = player.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then continue end
+        local hrp = char.HumanoidRootPart
+        local pos = hrp.Position
+        
+        -- DETECT PAD TERISI → COUNTDOWN → TP ARENA
+        if not getgenv().countdownActive and not getgenv().matchActive then
+            local dist1 = (pos - pad1Pos.Position).Magnitude
+            local dist2 = (pos - pad2Pos.Position).Magnitude
+            
+            if (dist1 < 10 and playerTeam == "pad1") or (dist2 < 10 and playerTeam == "pad2") then
+                getgenv().countdownActive = true
+                getgenv().matchActive = true
+                
+                for i = 3, 1, -1 do
+                    print("COUNTDOWN: " .. i)
+                    wait(1)
+                end
+                
+                if playerTeam == "pad1" then
+                    teleportTo(arenaPad1Pos)
+                else
+                    teleportTo(arenaPad2Pos)
+                end
+                
+                getgenv().countdownActive = false
+            end
+        end
+        
+        -- AUTO RESET: YANG NYALAIN TOGGLE DI ARENA TEAM-NYA
+        if getgenv().autoReset then
+            local arenaPos = (playerTeam == "pad1") and arenaPad1Pos or arenaPad2Pos
+            local distArena = (pos - arenaPos.Position).Magnitude
+            if distArena < 15 then
+                resetCharacter()
+                wait(3)
+                teleportTo((playerTeam == "pad1") and pad1Pos or pad2Pos)
+                getgenv().matchActive = false
+            end
+        end
+        
+        -- VICTORY: DETECT DI ARENA LAWAN (LAWAN RESET)
+        if not getgenv().autoReset and getgenv().matchActive then
+            local enemyArenaPos = (playerTeam == "pad1") and arenaPad2Pos or arenaPad1Pos
+            local distEnemyArena = (pos - enemyArenaPos.Position).Magnitude
+            if distEnemyArena < 20 then
+                showVictoryGui()
+                getgenv().matchActive = false
+            end
+        end
+    end
+end)
+
+--// GUI TOGGLE
+local gui = Instance.new("ScreenGui")
+gui.Name = "ArenaMaster"
+gui.ResetOnSpawn = false
+gui.Parent = game.CoreGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 160, 0, 140)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.Parent = gui
+
+-- TEAM SELECTOR
+local teamLabel = Instance.new("TextLabel")
+teamLabel.Size = UDim2.new(1, -10, 0, 25)
+teamLabel.Position = UDim2.new(0, 5, 0, 5)
+teamLabel.BackgroundTransparency = 1
+teamLabel.Text = "TEAM: PAD1"
+teamLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+teamLabel.Font = Enum.Font.SourceSansBold
+teamLabel.TextSize = 12
+teamLabel.Parent = frame
+
+local teamBtn = Instance.new("TextButton")
+teamBtn.Size = UDim2.new(1, -10, 0, 25)
+teamBtn.Position = UDim2.new(0, 5, 0, 30)
+teamBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+teamBtn.Text = "Switch Team"
+teamBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+teamBtn.Font = Enum.Font.SourceSans
+teamBtn.TextSize = 12
+teamBtn.Parent = frame
+teamBtn.MouseButton1Click:Connect(function()
+    playerTeam = playerTeam == "pad1" and "pad2" or "pad1"
+    teamLabel.Text = "TEAM: " .. (playerTeam == "pad1" and "PAD1" or "PAD2")
+end)
+
+-- AUTO RESET TOGGLE
+local resetBtn = Instance.new("TextButton")
+resetBtn.Size = UDim2.new(1, -10, 0, 35)
+resetBtn.Position = UDim2.new(0, 5, 0, 60)
+resetBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+resetBtn.Text = "Auto Reset: OFF"
+resetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+resetBtn.Font = Enum.Font.SourceSansBold
+resetBtn.TextSize = 13
+resetBtn.Parent = frame
+resetBtn.MouseButton1Click:Connect(function()
+    getgenv().autoReset = not getgenv().autoReset
+    resetBtn.Text = "Auto Reset: " .. (getgenv().autoReset and "ON" or "OFF")
+    resetBtn.BackgroundColor3 = getgenv().autoReset and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
+end)
+
+-- TP BUTTONS
+local tp1Btn = Instance.new("TextButton")
+tp1Btn.Size = UDim2.new(0.48, -7, 0, 25)
+tp1Btn.Position = UDim2.new(0, 5, 0, 100)
+tp1Btn.BackgroundColor3 = Color3.fromRGB(40, 100, 200)
+tp1Btn.Text = "TP Pad1"
+tp1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+tp1Btn.Font = Enum.Font.SourceSans
+tp1Btn.TextSize = 11
+tp1Btn.Parent = frame
+tp1Btn.MouseButton1Click:Connect(function() teleportTo(pad1Pos) end)
+
+local tp2Btn = Instance.new("TextButton")
+tp2Btn.Size = UDim2.new(0.48, -5, 0, 25)
+tp2Btn.Position = UDim2.new(0.52, 0, 0, 100)
+tp2Btn.BackgroundColor3 = Color3.fromRGB(40, 100, 200)
+tp2Btn.Text = "TP Pad2"
+tp2Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+tp2Btn.Font = Enum.Font.SourceSans
+tp2Btn.TextSize = 11
+tp2Btn.Parent = frame
+tp2Btn.MouseButton1Click:Connect(function() teleportTo(pad2Pos) end)
