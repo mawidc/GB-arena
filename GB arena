@@ -9,7 +9,7 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 --// STATE
-local playerTeam = "pad1"  -- pad1 atau pad2
+local playerTeam = "pad1"
 getgenv().autoReset = false
 getgenv().matchActive = false
 getgenv().countdownActive = false
@@ -23,9 +23,7 @@ local function teleportTo(pos)
 end
 
 local function resetCharacter()
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        player.Character.Humanoid.Health = 0
-    end
+    player:LoadCharacter()  -- ✅ FIX: PAKAI INI BUKAN Humanoid.Health=0
 end
 
 local function showVictoryGui()
@@ -71,13 +69,12 @@ local function showVictoryGui()
     points.TextSize = 16
     points.Parent = frame
     
-    wait(3)
-    gui:Destroy()
+    game:GetService("Debris"):AddItem(gui, 3)  -- auto destroy 3 detik
     getgenv().victoryGuiActive = false
-    teleportTo(pad2Pos)
+    spawn(function() wait(3) teleportTo(pad2Pos) end)
 end
 
---// MAIN LOOP (UDah CORRECT)
+--// MAIN LOOP ✅ FIXED
 spawn(function()
     while true do
         wait(0.1)
@@ -87,7 +84,7 @@ spawn(function()
         local hrp = char.HumanoidRootPart
         local pos = hrp.Position
         
-        -- DETECT PAD TERISI → COUNTDOWN → TP ARENA
+        -- DETECT PAD → COUNTDOWN → TP ARENA
         if not getgenv().countdownActive and not getgenv().matchActive then
             local dist1 = (pos - pad1Pos.Position).Magnitude
             local dist2 = (pos - pad2Pos.Position).Magnitude
@@ -96,34 +93,44 @@ spawn(function()
                 getgenv().countdownActive = true
                 getgenv().matchActive = true
                 
+                -- COUNTDOWN GUI
+                local cdGui = Instance.new("TextLabel")
+                cdGui.Size = UDim2.new(0, 200, 0, 80)
+                cdGui.Position = UDim2.new(0.5, -100, 0.4, 0)
+                cdGui.BackgroundTransparency = 1
+                cdGui.TextColor3 = Color3.fromRGB(255, 255, 0)
+                cdGui.Font = Enum.Font.SourceSansBold
+                cdGui.TextSize = 60
+                cdGui.Text = "3"
+                cdGui.Parent = game.CoreGui
+                
                 for i = 3, 1, -1 do
-                    print("COUNTDOWN: " .. i)
+                    cdGui.Text = tostring(i)
                     wait(1)
                 end
+                cdGui:Destroy()
+                getgenv().countdownActive = false
                 
+                -- TP ARENA
                 if playerTeam == "pad1" then
                     teleportTo(arenaPad1Pos)
                 else
                     teleportTo(arenaPad2Pos)
                 end
-                
-                getgenv().countdownActive = false
             end
         end
         
-        -- AUTO RESET: YANG NYALAIN TOGGLE DI ARENA TEAM-NYA
+        -- ✅ AUTO RESET DI ARENA TEAM SENDIRI
         if getgenv().autoReset then
             local arenaPos = (playerTeam == "pad1") and arenaPad1Pos or arenaPad2Pos
             local distArena = (pos - arenaPos.Position).Magnitude
             if distArena < 15 then
                 resetCharacter()
-                wait(3)
-                teleportTo((playerTeam == "pad1") and pad1Pos or pad2Pos)
                 getgenv().matchActive = false
             end
         end
         
-        -- VICTORY: DETECT DI ARENA LAWAN (LAWAN RESET)
+        -- VICTORY: LAWAN RESET (detect di arena lawan)
         if not getgenv().autoReset and getgenv().matchActive then
             local enemyArenaPos = (playerTeam == "pad1") and arenaPad2Pos or arenaPad1Pos
             local distEnemyArena = (pos - enemyArenaPos.Position).Magnitude
@@ -135,17 +142,38 @@ spawn(function()
     end
 end)
 
---// GUI TOGGLE
+--// GUI SLIDE TOGGLE ✅ FIXED
 local gui = Instance.new("ScreenGui")
 gui.Name = "ArenaMaster"
 gui.ResetOnSpawn = false
 gui.Parent = game.CoreGui
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 160, 0, 140)
+frame.Size = UDim2.new(0, 160, 0, 160)
 frame.Position = UDim2.new(0, 10, 0, 10)
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.Parent = gui
+
+local function createSlideToggle(text, posY, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 35)
+    btn.Position = UDim2.new(0, 5, 0, posY)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 13
+    btn.Text = text .. ": OFF"
+    btn.Parent = frame
+    
+    local toggled = false
+    btn.MouseButton1Click:Connect(function()
+        toggled = not toggled
+        btn.Text = text .. ": " .. (toggled and "ON" or "OFF")
+        btn.BackgroundColor3 = toggled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
+        callback(toggled)
+    end)
+    return btn
+end
 
 -- TEAM SELECTOR
 local teamLabel = Instance.new("TextLabel")
@@ -172,20 +200,9 @@ teamBtn.MouseButton1Click:Connect(function()
     teamLabel.Text = "TEAM: " .. (playerTeam == "pad1" and "PAD1" or "PAD2")
 end)
 
--- AUTO RESET TOGGLE
-local resetBtn = Instance.new("TextButton")
-resetBtn.Size = UDim2.new(1, -10, 0, 35)
-resetBtn.Position = UDim2.new(0, 5, 0, 60)
-resetBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-resetBtn.Text = "Auto Reset: OFF"
-resetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-resetBtn.Font = Enum.Font.SourceSansBold
-resetBtn.TextSize = 13
-resetBtn.Parent = frame
-resetBtn.MouseButton1Click:Connect(function()
-    getgenv().autoReset = not getgenv().autoReset
-    resetBtn.Text = "Auto Reset: " .. (getgenv().autoReset and "ON" or "OFF")
-    resetBtn.BackgroundColor3 = getgenv().autoReset and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
+-- ✅ SLIDE TOGGLE AUTO RESET
+createSlideToggle("Auto Reset", 60, function(state) 
+    getgenv().autoReset = state 
 end)
 
 -- TP BUTTONS
